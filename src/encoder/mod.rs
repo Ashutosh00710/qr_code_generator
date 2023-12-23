@@ -64,9 +64,9 @@ impl DataEncoder {
                 num_numeric_char_count_bits:      10,
                 num_alphanumeric_char_count_bits: 9,
                 num_byte_char_count_bits:         8,
-                data: vec![],
-                actual: vec![],
-                optimised: vec![],
+                data:                             vec![],
+                actual:                           vec![],
+                optimised:                        vec![],
             },
             Version10TO26 => DataEncoder{
                 min_version:                      10,
@@ -77,9 +77,9 @@ impl DataEncoder {
                 num_numeric_char_count_bits:      12,
                 num_alphanumeric_char_count_bits: 11,
                 num_byte_char_count_bits:         16,
-                data: vec![],
-                actual: vec![],
-                optimised: vec![],
+                data:                             vec![],
+                actual:                           vec![],
+                optimised:                        vec![],
             },
             Version27TO40 => DataEncoder{
                 min_version:                      27,
@@ -90,14 +90,14 @@ impl DataEncoder {
                 num_numeric_char_count_bits:      14,
                 num_alphanumeric_char_count_bits: 13,
                 num_byte_char_count_bits:         16,
-                data: vec![],
-                actual: vec![],
-                optimised: vec![],
+                data:                             vec![],
+                actual:                           vec![],
+                optimised:                        vec![],
             },
         }
     }
 
-    // mode_indicator returns the segment header bits for a segment of type DataMode.
+    /// mode_indicator returns the segment header bits for a segment of type DataMode.
     fn mode_indicator(&self, mode: DataMode) -> Result<BitSet, String> {
         match mode {
             DataMode::Numeric(_) => Ok(self.numeric_mode_indicator.clone()),
@@ -107,8 +107,8 @@ impl DataEncoder {
         }
     }
 
-    // char_count_bits returns the number of bits used to encode the length of a data
-    // segment of type DataMode.
+    /// char_count_bits returns the number of bits used to encode the length of a data
+    /// segment of type DataMode.
     fn char_count_bits(&self, mode: DataMode) -> Result<i32, String> {
         match mode {
             DataMode::Numeric(_) => Ok(self.num_numeric_char_count_bits.clone()),
@@ -118,6 +118,17 @@ impl DataEncoder {
         }
     }
 
+    /// encodedLength returns the number of bits required to encode n symbols in
+    /// data_mode
+    ///
+    /// The number of bits required is affected by:
+    ///	- QR code type - Mode Indicator length
+    ///	- Data mode - number of bits used to represent data length
+    ///	- Data mode - how the data is encoded (alphanumeric, numeric)
+    ///	- Number of symbols encoded
+    ///
+    /// An error is returned if the mode is not supported, or the length requested is
+    /// too long to be represented
     fn encoded_length(&self, data_mode: DataMode, n: i32) -> Result<i32, String> {
         let mode = self.mode_indicator(data_mode);
         let char_count_bits = self.char_count_bits(data_mode);
@@ -127,6 +138,9 @@ impl DataEncoder {
         }
 
         // TODO: code can panic, will review later
+        // explanation behind max_length: char count indicator for version range 1-9 and
+        // alphanumeric mode is 9, then the maximum number 9 bits can represent in
+        // binary is 511 (binary of 512: 111111111)
         let max_length = (1 << char_count_bits.clone().unwrap()) - 1;
         if n > max_length {
             return Err(String::from("length too long to be represented"))
@@ -160,11 +174,96 @@ impl DataEncoder {
         if self.data.len() == 0 {
             return Err(String::from("no data to encode"));
         }
-
+        // classify data into unoptimised segments
         let highest_required_mode = self.classify_data_mode();
+        // optimise segments.
+        let err = self.optimise_data_mode_of_segments();
+        if let Some(err) = err {
+            return Err(err)
+        }
         Ok(highest_required_mode)
     }
 
+    /// optimise_data_mode_of_segments optimises the list of segments to reduce the overall output
+    /// encoded data length.
+    ///
+    /// The algorithm coalesces adjacent segments. segments are only coalesced when
+    /// the Data Modes are compatible, and when the coalesced segment has a shorter
+    /// encoded length than separate segments.
+    ///
+    /// Multiple segments may be coalesced. For example a string of alternating
+    /// alphanumeric/numeric segments ANANANANA can be optimised to just A.
+    fn optimise_data_mode_of_segments(&mut self) -> Option<String> {
+        let mut i = 0;
+        while i < self.actual.len() {
+            let segment = self.actual.get(i).unwrap();
+            // not handling Option (for next 2 lines) because I know there will be no
+            // segfault in this statement
+            let data_mode = segment.data_mode;
+            let mut number_of_characters = segment.data.len();
+            let mut j = i + 1;
+            while j < self.actual.len() {
+                let next_segment = self.actual.get(j).unwrap();
+                let number_of_characters_for_next_segment = next_segment.data.len();
+                let data_mode_for_next_segment = next_segment.data_mode;
+
+                if data_mode < data_mode_for_next_segment {
+                    break
+                }
+
+                let coalesced_result = self.encoded_length(
+                    data_mode_for_next_segment,
+                    (number_of_characters + number_of_characters_for_next_segment) as i32
+                );
+                if coalesced_result.is_err() {
+                    return Some(coalesced_result.unwrap_err());
+                }
+
+                let segment_one_result = self.encoded_length(data_mode, number_of_characters as i32);
+                if segment_one_result.is_err() {
+                    return Some(segment_one_result.unwrap_err());
+                }
+
+                let segment_two_result = self.encoded_length(
+                    data_mode_for_next_segment,
+                    number_of_characters_for_next_segment as i32
+                );
+                if segment_two_result.is_err() {
+                    return Some(segment_two_result.unwrap_err());
+                }
+
+                if coalesced_result.unwrap() < segment_one_result.unwrap() + segment_two_result.unwrap() {
+                    j += 1;
+                    number_of_characters += number_of_characters_for_next_segment
+                } else {
+                    break;
+                }
+            }
+
+            let mut optimized = Segment{
+                data_mode,
+                data: vec![],
+            };
+
+            for k in i..j {
+                optimized.data.append(&mut self.actual.get(k).unwrap().data.clone());
+            }
+
+            self.optimised.push(optimized);
+            i = j;
+        }
+        None
+    }
+
+    /// classify_data_mode classifies the raw data into unoptimised segments
+    ///
+    /// e.g. ```"123ZZ#!#!" =>```
+    /// ```[numeric, 3, "123"] [alphanumeric, 2, "ZZ"] [byte, 4, "#!#!"]```
+    ///
+    /// Returns the highest data mode needed to encode the data. e.g. for a mixed
+    /// numeric/alphanumeric input, the highest is alphanumeric.
+    ///
+    /// `data_mode` none < `data_mode` numeric < `data_mode` alphanumeric < `data_mode` byte
     fn classify_data_mode(&mut self) -> DataMode {
         let mut start = 0;
         let mut mode = DataMode::none();
