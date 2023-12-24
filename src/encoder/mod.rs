@@ -196,7 +196,7 @@ impl DataEncoder {
         if single_segment_length_result.is_err() {
             return Err(single_segment_length_result.unwrap_err())
         }
-        if single_segment_length_result.unwrap() < optimised_length {
+        if single_segment_length_result.unwrap() <= optimised_length {
             self.optimised = vec![Segment{data_mode: highest_required_mode, data: self.data.clone()}];
         }
 
