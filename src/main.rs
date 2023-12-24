@@ -17,7 +17,7 @@ fn main() {
         let mut encoder = DataEncoder::new(data_encoder_type);
         let result = encoder.encode(String::from("HTTPS://GOOGLE.COM").into_bytes());
         match result {
-            Ok(r)=> println!("result: {}", r.value()),
+            Ok(r)=> println!("result: {:?}", r),
             Err(e) => println!("result: {}", e),
         }
         println!("-----------------------------")

@@ -5,12 +5,14 @@ pub struct BitSet {
 }
 
 impl BitSet {
-    pub fn new(v: Vec<bool>) -> Self {
+    pub fn new(v: Option<Vec<bool>>) -> Self {
         let mut bitset = BitSet {
             num_bytes: 0,
             bits: Vec::new(),
         };
-        bitset.append_bool(v);
+        if let Some(v) = v {
+            bitset.append_bool(v);
+        }
         bitset
     }
 
