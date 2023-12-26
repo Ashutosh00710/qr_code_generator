@@ -22,9 +22,9 @@ pub struct DataEncoder {
     byte_mode_indicator: BitSet,
 
     // Character count lengths.
-    num_numeric_char_count_bits: i32,
-    num_alphanumeric_char_count_bits: i32,
-    num_byte_char_count_bits: i32,
+    num_numeric_char_count_bits: usize,
+    num_alphanumeric_char_count_bits: usize,
+    num_byte_char_count_bits: usize,
 
     // The raw input data.
     data: Vec<u8>,
@@ -109,11 +109,11 @@ impl DataEncoder {
 
     /// char_count_bits returns the number of bits used to encode the length of a data
     /// segment of type DataMode.
-    fn char_count_bits(&self, mode: DataMode) -> Result<i32, String> {
+    fn char_count_bits(&self, mode: DataMode) -> Result<usize, String> {
         match mode {
-            DataMode::Numeric(_) => Ok(self.num_numeric_char_count_bits.clone()),
-            DataMode::Alphanumeric(_) => Ok(self.num_alphanumeric_char_count_bits.clone()),
-            DataMode::Byte(_) => Ok(self.num_byte_char_count_bits.clone()),
+            DataMode::Numeric(_) => Ok(self.num_numeric_char_count_bits),
+            DataMode::Alphanumeric(_) => Ok(self.num_alphanumeric_char_count_bits),
+            DataMode::Byte(_) => Ok(self.num_byte_char_count_bits),
             _ => Err(String::from("Unknown data mode")),
         }
     }
@@ -122,14 +122,14 @@ impl DataEncoder {
     /// data_mode
     ///
     /// The number of bits required is affected by:
-    ///	- QR code type - Mode Indicator length
-    ///	- Data mode - number of bits used to represent data length
-    ///	- Data mode - how the data is encoded (alphanumeric, numeric)
-    ///	- Number of symbols encoded
+    ///    - QR code type - Mode Indicator length
+    ///    - Data mode - number of bits used to represent data length
+    ///    - Data mode - how the data is encoded (alphanumeric, numeric)
+    ///    - Number of symbols encoded
     ///
     /// An error is returned if the mode is not supported, or the length requested is
     /// too long to be represented
-    fn encoded_length(&self, data_mode: DataMode, n: i32) -> Result<i32, String> {
+    fn encoded_length(&self, data_mode: DataMode, n: usize) -> Result<usize, String> {
         let mode = self.mode_indicator(data_mode);
         let char_count_bits = self.char_count_bits(data_mode);
 
@@ -174,7 +174,7 @@ impl DataEncoder {
     /// The returned data does not include the terminator bit sequence
     pub fn encode(&mut self, data: Vec<u8>) -> Result<BitSet, String> {
         self.data = data;
-        if self.data.len() == 0 {
+        if self.data.is_empty() {
             return Err(String::from("no data to encode"));
         }
         // classify data into unoptimised segments
@@ -186,30 +186,35 @@ impl DataEncoder {
         }
         let mut optimised_length = 0;
         for segment in self.optimised.iter() {
-            let result_length = self.encoded_length(segment.data_mode, segment.data.len() as i32);
-            if result_length.is_err() {
-                return Err(result_length.unwrap_err())
-            }
-            optimised_length += result_length.unwrap();
+            let result_length = self.encoded_length(segment.data_mode, segment.data.len())?;
+            optimised_length += result_length;
         }
-        let single_segment_length_result = self.encoded_length(highest_required_mode, self.data.len() as i32);
-        if single_segment_length_result.is_err() {
-            return Err(single_segment_length_result.unwrap_err())
-        }
-        if single_segment_length_result.unwrap() <= optimised_length {
-            self.optimised = vec![Segment{data_mode: highest_required_mode, data: self.data.clone()}];
+        let single_segment_length_result = self.encoded_length(highest_required_mode, self.data.len());
+
+        match single_segment_length_result {
+            Ok(single_segment_length) => {
+                if single_segment_length <= optimised_length {
+                    self.optimised = vec![Segment { data_mode: highest_required_mode, data: self.data.clone() }];
+                }
+            },
+            Err(err) => return Err(err)
         }
 
-        let encoded = BitSet::new(None);
+        let mut encoded = BitSet::new(None);
         for segment in self.optimised.iter() {
-            self.encode_data_raw(&segment.data, segment.data_mode, &encoded);
+            self.encode_data_raw(&segment.data, segment.data_mode, &mut encoded);
         }
         Ok(encoded)
     }
 
-    /// encode_data_raw encodes data in dataMode. The encoded data is appended to
+    /// encode_data_raw encodes data in data_mode. The encoded data is appended to
     /// encoded
-    fn encode_data_raw(&self, data: &Vec<u8>, data_mode: DataMode, encoded: &BitSet) {}
+    fn encode_data_raw(&self, data: &Vec<u8>, data_mode: DataMode, encoded: &mut BitSet) {
+        let mode = self.mode_indicator(data_mode);
+        // let char_count_bits = self.char_count_bits(data_mode);
+        println!("{:?}", mode.clone().unwrap());
+        encoded.append(mode.unwrap());
+    }
 
     /// optimise_data_mode_of_segments optimises the list of segments to reduce the overall output
     /// encoded data length.
@@ -238,28 +243,19 @@ impl DataEncoder {
                     break
                 }
 
-                let coalesced_result = self.encoded_length(
+                let coalesced_length = self.encoded_length(
                     data_mode_for_next_segment,
-                    (number_of_characters + number_of_characters_for_next_segment) as i32
-                );
-                if coalesced_result.is_err() {
-                    return Some(coalesced_result.unwrap_err());
-                }
+                    number_of_characters + number_of_characters_for_next_segment
+                ).ok()?;
 
-                let segment_one_result = self.encoded_length(data_mode, number_of_characters as i32);
-                if segment_one_result.is_err() {
-                    return Some(segment_one_result.unwrap_err());
-                }
+                let segment_one_length = self.encoded_length(data_mode, number_of_characters).ok()?;
 
-                let segment_two_result = self.encoded_length(
+                let segment_two_length = self.encoded_length(
                     data_mode_for_next_segment,
-                    number_of_characters_for_next_segment as i32
-                );
-                if segment_two_result.is_err() {
-                    return Some(segment_two_result.unwrap_err());
-                }
+                    number_of_characters_for_next_segment
+                ).ok()?;
 
-                if coalesced_result.unwrap() < segment_one_result.unwrap() + segment_two_result.unwrap() {
+                if coalesced_length < segment_one_length + segment_two_length {
                     j += 1;
                     number_of_characters += number_of_characters_for_next_segment
                 } else {
