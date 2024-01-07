@@ -2,11 +2,7 @@ mod data_mode;
 
 use crate::bitset::BitSet;
 use crate::constants::{B0, B1};
-use crate::encoder::DataEncoderType::{
-    Version1TO9,
-    Version10TO26,
-    Version27TO40,
-};
+use crate::encoder::DataEncoderType::{Version10TO26, Version1TO9, Version27TO40};
 use data_mode::DataMode;
 
 // A dataEncoder encodes data for a particular QR Code version.
@@ -33,7 +29,7 @@ pub struct DataEncoder {
     actual: Vec<Segment>,
 
     // The data classified into optimised segments.
-    optimised: Vec<Segment>
+    optimised: Vec<Segment>,
 }
 
 #[derive(Debug)]
@@ -49,50 +45,50 @@ struct Segment {
     data_mode: DataMode,
 
     // segment data (e.g. "abc").
-    data: Vec<u8>
+    data: Vec<u8>,
 }
 
 impl DataEncoder {
     pub fn new(t: DataEncoderType) -> Self {
         match t {
             Version1TO9 => DataEncoder {
-                min_version:                      1,
-                max_version:                      9,
-                numeric_mode_indicator:           BitSet::new(Some(vec![B0, B0, B0, B1])),
-                alphanumeric_mode_indicator:      BitSet::new(Some(vec![B0, B0, B1, B0])),
-                byte_mode_indicator:              BitSet::new(Some(vec![B0, B1, B0, B0])),
-                num_numeric_char_count_bits:      10,
+                min_version: 1,
+                max_version: 9,
+                numeric_mode_indicator: BitSet::new(Some(vec![B0, B0, B0, B1])),
+                alphanumeric_mode_indicator: BitSet::new(Some(vec![B0, B0, B1, B0])),
+                byte_mode_indicator: BitSet::new(Some(vec![B0, B1, B0, B0])),
+                num_numeric_char_count_bits: 10,
                 num_alphanumeric_char_count_bits: 9,
-                num_byte_char_count_bits:         8,
-                data:                             vec![],
-                actual:                           vec![],
-                optimised:                        vec![],
+                num_byte_char_count_bits: 8,
+                data: vec![],
+                actual: vec![],
+                optimised: vec![],
             },
-            Version10TO26 => DataEncoder{
-                min_version:                      10,
-                max_version:                      26,
-                numeric_mode_indicator:           BitSet::new(Some(vec![B0, B0, B0, B1])),
-                alphanumeric_mode_indicator:      BitSet::new(Some(vec![B0, B0, B1, B0])),
-                byte_mode_indicator:              BitSet::new(Some(vec![B0, B1, B0, B0])),
-                num_numeric_char_count_bits:      12,
+            Version10TO26 => DataEncoder {
+                min_version: 10,
+                max_version: 26,
+                numeric_mode_indicator: BitSet::new(Some(vec![B0, B0, B0, B1])),
+                alphanumeric_mode_indicator: BitSet::new(Some(vec![B0, B0, B1, B0])),
+                byte_mode_indicator: BitSet::new(Some(vec![B0, B1, B0, B0])),
+                num_numeric_char_count_bits: 12,
                 num_alphanumeric_char_count_bits: 11,
-                num_byte_char_count_bits:         16,
-                data:                             vec![],
-                actual:                           vec![],
-                optimised:                        vec![],
+                num_byte_char_count_bits: 16,
+                data: vec![],
+                actual: vec![],
+                optimised: vec![],
             },
-            Version27TO40 => DataEncoder{
-                min_version:                      27,
-                max_version:                      40,
-                numeric_mode_indicator:           BitSet::new(Some(vec![B0, B0, B0, B1])),
-                alphanumeric_mode_indicator:      BitSet::new(Some(vec![B0, B0, B1, B0])),
-                byte_mode_indicator:              BitSet::new(Some(vec![B0, B1, B0, B0])),
-                num_numeric_char_count_bits:      14,
+            Version27TO40 => DataEncoder {
+                min_version: 27,
+                max_version: 40,
+                numeric_mode_indicator: BitSet::new(Some(vec![B0, B0, B0, B1])),
+                alphanumeric_mode_indicator: BitSet::new(Some(vec![B0, B0, B1, B0])),
+                byte_mode_indicator: BitSet::new(Some(vec![B0, B1, B0, B0])),
+                num_numeric_char_count_bits: 14,
                 num_alphanumeric_char_count_bits: 13,
-                num_byte_char_count_bits:         16,
-                data:                             vec![],
-                actual:                           vec![],
-                optimised:                        vec![],
+                num_byte_char_count_bits: 16,
+                data: vec![],
+                actual: vec![],
+                optimised: vec![],
             },
         }
     }
@@ -134,7 +130,7 @@ impl DataEncoder {
         let char_count_bits = self.char_count_bits(data_mode);
 
         if mode.is_err() {
-            return Err(String::from("mode not supported"))
+            return Err(String::from("mode not supported"));
         }
 
         // TODO: code can panic, will review later
@@ -143,7 +139,7 @@ impl DataEncoder {
         // binary is 511 (binary of 512: 111111111)
         let max_length = (1 << char_count_bits.clone().unwrap()) - 1;
         if n > max_length {
-            return Err(String::from("length too long to be represented"))
+            return Err(String::from("length too long to be represented"));
         }
 
         let mut length = mode.unwrap().len() + char_count_bits.unwrap();
@@ -154,17 +150,15 @@ impl DataEncoder {
                 if n % 3 != 0 {
                     length += 1 + 3 * (n % 3);
                 }
-            },
+            }
             // Alphanumeric: 11 x (Quotient that divides digit number by two) + (Odd=0 then 0, Odd=1then 6)
             DataMode::Alphanumeric(_) => {
                 length += 11 * (n / 2);
                 length += 6 * (n % 2);
-            },
+            }
             // Binary: 8 x Character digits
             DataMode::Byte(_) => length += 8 * n,
-            _ => {
-                return Err(String::from("Unknown data mode"))
-            },
+            _ => return Err(String::from("Unknown data mode")),
         };
         Ok(length)
     }
@@ -182,22 +176,26 @@ impl DataEncoder {
         // optimise segments.
         let err = self.optimise_data_mode_of_segments();
         if let Some(err) = err {
-            return Err(err)
+            return Err(err);
         }
         let mut optimised_length = 0;
         for segment in self.optimised.iter() {
             let result_length = self.encoded_length(segment.data_mode, segment.data.len())?;
             optimised_length += result_length;
         }
-        let single_segment_length_result = self.encoded_length(highest_required_mode, self.data.len());
+        let single_segment_length_result =
+            self.encoded_length(highest_required_mode, self.data.len());
 
         match single_segment_length_result {
             Ok(single_segment_length) => {
                 if single_segment_length <= optimised_length {
-                    self.optimised = vec![Segment { data_mode: highest_required_mode, data: self.data.clone() }];
+                    self.optimised = vec![Segment {
+                        data_mode: highest_required_mode,
+                        data: self.data.clone(),
+                    }];
                 }
-            },
-            Err(err) => return Err(err)
+            }
+            Err(err) => return Err(err),
         }
 
         let mut encoded = BitSet::new(None);
@@ -211,9 +209,39 @@ impl DataEncoder {
     /// encoded
     fn encode_data_raw(&self, data: &Vec<u8>, data_mode: DataMode, encoded: &mut BitSet) {
         let mode = self.mode_indicator(data_mode);
-        // let char_count_bits = self.char_count_bits(data_mode);
-        println!("{:?}", mode.clone().unwrap());
+        let char_count_bits = self.char_count_bits(data_mode);
+
         encoded.append(mode.unwrap());
+        encoded.append_u32(&(data.len() as u32), char_count_bits.unwrap());
+
+        match data_mode {
+            // ref: https://www.thonky.com/qr-code-tutorial/numeric-mode-encoding
+            DataMode::Numeric(_) => {
+                // Step 1: Break String Up Into Groups of Three
+                for i in (0..data.len()).step_by(3) {
+                    let chars_remaining = data.len() - i;
+
+                    let mut value: u32 = 0;
+                    let mut bits_used: usize = 1;
+                    // Step 2: Convert each group into binary
+                    for j in 0..std::cmp::min(chars_remaining, 3) {
+                        value *= 10;
+                        value += (data[i + j] - 0x30) as u32;
+                        bits_used += 3;
+                    }
+                    encoded.append_u32(&value, bits_used);
+                }
+            }
+            // ref: https://www.thonky.com/qr-code-tutorial/alphanumeric-mode-encoding
+            DataMode::Alphanumeric(_) => {}
+            // ref: https://www.thonky.com/qr-code-tutorial/byte-mode-encoding
+            DataMode::Byte(_) => {
+                for b in data {
+                    encoded.append_byte(b, 8)
+                }
+            }
+            _ => {}
+        }
     }
 
     /// optimise_data_mode_of_segments optimises the list of segments to reduce the overall output
@@ -240,20 +268,25 @@ impl DataEncoder {
                 let data_mode_for_next_segment = next_segment.data_mode;
 
                 if data_mode < data_mode_for_next_segment {
-                    break
+                    break;
                 }
 
-                let coalesced_length = self.encoded_length(
-                    data_mode_for_next_segment,
-                    number_of_characters + number_of_characters_for_next_segment
-                ).ok()?;
+                let coalesced_length = self
+                    .encoded_length(
+                        data_mode_for_next_segment,
+                        number_of_characters + number_of_characters_for_next_segment,
+                    )
+                    .ok()?;
 
-                let segment_one_length = self.encoded_length(data_mode, number_of_characters).ok()?;
+                let segment_one_length =
+                    self.encoded_length(data_mode, number_of_characters).ok()?;
 
-                let segment_two_length = self.encoded_length(
-                    data_mode_for_next_segment,
-                    number_of_characters_for_next_segment
-                ).ok()?;
+                let segment_two_length = self
+                    .encoded_length(
+                        data_mode_for_next_segment,
+                        number_of_characters_for_next_segment,
+                    )
+                    .ok()?;
 
                 if coalesced_length < segment_one_length + segment_two_length {
                     j += 1;
@@ -263,13 +296,15 @@ impl DataEncoder {
                 }
             }
 
-            let mut optimized = Segment{
+            let mut optimized = Segment {
                 data_mode,
                 data: vec![],
             };
 
             for k in i..j {
-                optimized.data.append(&mut self.actual.get(k).unwrap().data.clone());
+                optimized
+                    .data
+                    .append(&mut self.actual.get(k).unwrap().data.clone());
             }
 
             self.optimised.push(optimized);
@@ -296,13 +331,18 @@ impl DataEncoder {
             let mut new_mode = DataMode::none();
             new_mode = match data {
                 0x30..=0x39 => DataMode::numeric(),
-                0x20 | 0x24 | 0x25 | 0x2a | 0x2b | 0x2d | 0x2e | 0x2f | 0x3a | 0x41..=0x5a => DataMode::alphanumeric(),
-                _ => DataMode::byte()
+                0x20 | 0x24 | 0x25 | 0x2a | 0x2b | 0x2d | 0x2e | 0x2f | 0x3a | 0x41..=0x5a => {
+                    DataMode::alphanumeric()
+                }
+                _ => DataMode::byte(),
             };
 
             if mode != new_mode {
                 if i > 0 {
-                    self.actual.append(&mut vec![Segment{data_mode: mode, data: self.data[start..i].to_owned() }]);
+                    self.actual.append(&mut vec![Segment {
+                        data_mode: mode,
+                        data: self.data[start..i].to_owned(),
+                    }]);
                     start = i
                 }
                 mode = new_mode
@@ -312,7 +352,10 @@ impl DataEncoder {
                 highest_data_mode = new_mode
             }
         }
-        self.actual.append(&mut vec![Segment{data_mode: mode, data: self.data[start..self.data.len()].to_owned() }]);
+        self.actual.append(&mut vec![Segment {
+            data_mode: mode,
+            data: self.data[start..self.data.len()].to_owned(),
+        }]);
         highest_data_mode
     }
 }
