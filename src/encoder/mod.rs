@@ -233,7 +233,25 @@ impl DataEncoder {
                 }
             }
             // ref: https://www.thonky.com/qr-code-tutorial/alphanumeric-mode-encoding
-            DataMode::Alphanumeric(_) => {}
+            DataMode::Alphanumeric(_) => {
+                // Step 1: Break up into pairs
+                for i in (0..data.len()).step_by(2) {
+                    let chars_remaining = data.len() - i;
+
+                    let mut value: u32 = 0;
+                    // Step 2: Create a binary number for each pair
+                    for j in 0..std::cmp::min(chars_remaining, 2) {
+                        value *= 45;
+                        value += self.encode_alphanumeric_character(data[i + j]);
+                    }
+
+                    let mut bits_used: usize = 6;
+                    if chars_remaining > 1 {
+                        bits_used = 11
+                    }
+                    encoded.append_u32(&value, bits_used);
+                }
+            }
             // ref: https://www.thonky.com/qr-code-tutorial/byte-mode-encoding
             DataMode::Byte(_) => {
                 for b in data {
@@ -357,5 +375,32 @@ impl DataEncoder {
             data: self.data[start..self.data.len()].to_owned(),
         }]);
         highest_data_mode
+    }
+
+    /// encode_alphanumeric_character returns the QR Code encoded value of v.
+    ///
+    /// v must be a QR Code defined alphanumeric character: 0-9, A-Z, SP, $%*+-./ or
+    /// :. The characters are mapped to values in the range 0-44 respectively.
+    fn encode_alphanumeric_character(&self, v: u8) -> u32 {
+        let c = v as u32;
+        match v {
+            b'0'..=b'9' => c - b'0' as u32,
+            b'A'..=b'Z' => c - b'A' as u32 + 10,
+            b' ' => 36,
+            b'$' => 37,
+            b'%' => 38,
+            b'*' => 39,
+            b'+' => 40,
+            b'-' => 41,
+            b'.' => 42,
+            b'/' => 43,
+            b':' => 44,
+            _ => {
+                panic!(
+                    "encode_alphanumeric_character() with non-alphanumeric char {}",
+                    v
+                );
+            }
+        }
     }
 }

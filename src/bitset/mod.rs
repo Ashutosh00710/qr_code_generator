@@ -78,7 +78,7 @@ impl BitSet {
             panic!("num_bits {} out of range 0-8", num_bits);
         }
 
-        for i in (0..(num_bits - 1)).rev() {
+        for i in (0..num_bits).rev() {
             if *value & (1 << i) != 0 {
                 self.bits[self.num_bits / 8] |= 0x80 >> (self.num_bits % 8);
             }
@@ -93,7 +93,7 @@ impl BitSet {
             panic!("num_bits {} out of range 0-32", num_bits);
         }
 
-        for i in (0..(num_bits - 1)).rev() {
+        for i in (0..num_bits).rev() {
             if *value & (1 << i) != 0 {
                 self.bits[self.num_bits / 8] |= 0x80 >> (self.num_bits % 8);
             }
