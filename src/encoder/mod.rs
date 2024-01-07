@@ -242,7 +242,7 @@ impl DataEncoder {
                     // Step 2: Create a binary number for each pair
                     for j in 0..std::cmp::min(chars_remaining, 2) {
                         value *= 45;
-                        value += self.encode_alphanumeric_character(data[i + j]);
+                        value += DataEncoder::encode_alphanumeric_character(data[i + j]);
                     }
 
                     let mut bits_used: usize = 6;
@@ -381,7 +381,7 @@ impl DataEncoder {
     ///
     /// v must be a QR Code defined alphanumeric character: 0-9, A-Z, SP, $%*+-./ or
     /// :. The characters are mapped to values in the range 0-44 respectively.
-    fn encode_alphanumeric_character(&self, v: u8) -> u32 {
+    fn encode_alphanumeric_character(v: u8) -> u32 {
         let c = v as u32;
         match v {
             b'0'..=b'9' => c - b'0' as u32,
