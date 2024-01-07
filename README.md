@@ -5,6 +5,8 @@ Implementation of a QR Code Generator from scratch.
 **Conceptual Reference:** https://www.qrcode.com/en
 
 ## Progress 🚀
-Current Stage: Encoding (Numeric, Alphanumeric, Byte)
+Finished: choose QR Code Version implementation
 
-Next Step: choose QR Code Version implementation
+Current Stage: QR code formation on console
+
+Next Step: Convert QR code to PNG

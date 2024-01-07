@@ -9,8 +9,8 @@ use data_mode::DataMode;
 #[derive(Debug)]
 pub struct DataEncoder {
     // Minimum & maximum versions supported.
-    min_version: i32,
-    max_version: i32,
+    pub min_version: i32,
+    pub max_version: i32,
 
     // Mode indicator bit sequences.
     numeric_mode_indicator: BitSet,
